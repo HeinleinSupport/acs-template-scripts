@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# /etc/dhcp/dhclient-exit-hooks.d/sethostname
+# 
+# Wenn Hostname == localhost (also frisch aus dem Template gebootet)
+#	- Hostname persistieren
+#	- SSH Server keypairs neu erzeugen
+#
+
+tag=$(basename $0)
+
+logmsg () {
+  logger -t "$tag" "$*"
+}
+
+if [ "$reason" = "BOUND" ]; then
+
+	oldhostname=$(head -n 1 /etc/hostname)
+	if [ $oldhostname = 'localhost' ]
+	then
+		logmsg "hostname _localhost_ detected. Changing hostname and writing /etc/hosts"
+		hostname=$new_host_name
+		fqdn=${new_host_name}.${new_domain_name}
+		ip=$new_ip_address
+	
+		# Update /etc/hosts (Platzhalter: ###IP###	###FQDN### ###HOSTNAME###)
+		logmsg "update /etc/hosts with IP: $ip, FQDN: $fqdn, Host: $hostname"
+		sed -i 's,###IP###,'$ip',g' /etc/hosts
+		sed -i 's,###FQDN###,'$fqdn',g' /etc/hosts
+		sed -i 's,###HOSTNAME###,'$hostname',g' /etc/hosts
+	
+		# Rename Host
+		logmsg "setting kernel hostname to $hostname"
+		echo $hostname > /etc/hostname
+		hostname -b -F /etc/hostname
+		echo $hostname > /proc/sys/kernel/hostname
+	
+		# Recreate SSH2
+		logmsg "creating new ssh server keypairs"
+		export DEBIAN_FRONTEND=noninteractive
+		dpkg-reconfigure openssh-server
+
+	fi
+fi
+
