@@ -1,0 +1,49 @@
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+#
+# see /etc/dhcp/dhclient-exit-hooks.d/movedhcpdefaultroute
+# see /etc/iproute2/rt_tables
+#
+# with this hack, two dhcp offerings w/ two default routes are
+# usable via iproute2
+#
+# Usage:
+#
+# a) eth0 as single managed (isolated or shared w/ dhcp) network
+#
+# b) eth0 as management network (isolated or shared w/ dhcp) PLUS
+#    eth1 as isolated or shared w/ dhcp OR quick cloud w/o services
+#
+
+#
+# first network
+#
+allow-hotplug eth0
+iface eth0 inet dhcp
+	pre-up  /sbin/ethtool -K eth0 tx off > /dev/null 2>&1 || /bin/true 
+
+#
+# second network (optional) / example w/ isolated or shared w/ dhcp
+# due to asynchronous interface initialization, sleep for 3 secs on dhcp
+#
+#auto eth1
+#iface eth1 inet dhcp
+#	pre-up  /bin/sleep 3 > /dev/null 2>&1 || /bin/true 
+
+#
+# second network (optional) / example w/ quick cloud no services
+#
+#auto eth1
+#iface eth1 inet static
+#	address
+#	netmask
+#	gateway
+
+
