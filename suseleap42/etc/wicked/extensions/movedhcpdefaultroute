@@ -1,0 +1,126 @@
+#!/bin/bash
+#
+# /etc/wicked/extensions/movedhcpdefaultroute
+#
+#
+# Heinlein Support GmbH 2015 https://www.heinlein-support.de/
+#
+# Peter Fischer <p.fischer@heinlein-support.de>
+# Stephan Seitz <s.seitz@heinlein-support.de>
+#
+#
+# The resulting template should drive two scenarios:
+# a) One interface w/ dhcp at that managed network.
+#    for this, we don't need anything.
+# b) Two interfaces. First interface in a defined and
+#    named management network (though managed via dhcp)
+#    plus a second managed or unmanaged network. That
+#    second network does not need to be managed via ACS.
+#
+# To get this done, iproute2 is used. Please refer to
+#   /etc/iproute2/rt_tables. If not already done,
+#   echo "8 mgmt" >> /etc/iproute2/rt_table.
+#
+
+#
+# # /etc/wicked/server-local.xml
+# # hook
+# <config>
+#   <system-updater name="resolver">
+#     <action name="backup" command="/etc/wicked/extensions/movedhcpdefaultroute backup"/>
+#     <action name="restore" command="/etc/wicked/extensions/movedhcpdefaultroute restore"/>
+#     <action name="install" command="/etc/wicked/extensions/movedhcpdefaultroute install"/>
+#     <action name="remove" command="/etc/wicked/extensions/movedhcpdefaultroute remove"/>
+#   </system-updater>
+# </config>
+#
+
+# This script triggers *only*, if the following variables
+# match:
+#
+# Name of the first, managed interface
+#iface="eth0"
+iface="eth0"
+#
+# Network address of our management network
+#mgmtnet="10.97.64.0"
+mgmtnet="10.97.64.0"
+#
+# RT to use (needs to be present in /etc/iproute2/rt_tables)
+#table="mgmt"
+table="mgmt"
+#
+# -------------------------------------------------------
+
+
+tag=$(basename $0)
+
+logmsg () {
+	logger -t "$tag" "$*"
+}
+
+execlog () {
+	logmsg "$*"
+	$*
+}
+
+
+
+# parameters via resolver target:
+# install -i eth0 -t dhcp -f ipv4 /run/wicked/extension/resolver/resolv.conf.eth0.dhcp.ipv4
+
+wicked_action=$1
+wicked_iface=$3
+wicked_nettype=$5
+wicked_af=$7
+
+if [ "_$wicked_action" = "_install" ]
+then
+	if [ "_$wicked_iface" = "_$iface" ] && [ "_$wicked_nettype" = "_dhcp" ] && [ "_$wicked_af" = "_ipv4" ]
+	then
+		logmsg "Interface $iface found"
+		leasefile="/run/wicked/leaseinfo.${wicked_iface}.${wicked_nettype}.${wicked_af}"
+		if [ -f $leasefile ]
+		then
+			. $leasefile
+
+			#INTERFACE='eth0'
+                        #TYPE='dhcp'
+                        #FAMILY='ipv4'
+                        #UUID='94c5a056-e7cd-0100-2503-000004000000'
+                        #HOSTNAME='sles-2nic-dieerste'
+                        #IPADDR='10.97.66.3/18'
+                        #NETMASK='255.255.192.0'
+                        #NETWORK='10.97.64.0'
+                        #BROADCAST='10.97.127.255'
+                        #PREFIXLEN='18'
+                        #GATEWAYS='10.97.64.1'
+                        #DNSDOMAIN='acs-vm-mgmt-1.heinlein-hosting.de'
+                        #DNSSERVERS='10.97.66.1 195.10.208.2 91.198.250.2'
+                        #DNSSEARCH='acs-vm-mgmt-1.heinlein-hosting.de'
+                        #CLIENTID='01:06:ec:18:00:08:55'
+                        #SERVERID='10.97.66.1'
+                        #ACQUIRED='1453376917'
+                        #LEASETIME='4294967295'
+                        #RENEWALTIME='2147483647'
+                        #REBINDTIME='536870911'
+                        #BOOTSERVERADDR='10.97.66.1'
+                        #BOOTFILE='pxelinux.0'
+			
+			ip=$(echo $IPADDR | cut -d'/' -f1)
+
+			if [ "_$NETWORK" = "_$mgmtnet" ]
+			then
+				      logmsg "We are in now the management network"
+
+					execlog ip route del default via "$GATEWAYS"
+					execlog ip route add "$NETWORK"/"$NETMASK" dev "$INTERFACE" src "$ip" table "$table"
+					execlog ip route add default via "$GATEWAYS" table "$table"
+					execlog ip rule add from "$ip" lookup "$table"
+			fi
+		fi
+
+	fi
+
+fi
+

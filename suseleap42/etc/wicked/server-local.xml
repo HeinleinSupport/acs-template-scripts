@@ -1,0 +1,8 @@
+<config>
+  <system-updater name="resolver">
+    <action name="backup" command="/etc/wicked/extensions/movedhcpdefaultroute backup"/>
+    <action name="restore" command="/etc/wicked/extensions/movedhcpdefaultroute restore"/>
+    <action name="install" command="/etc/wicked/extensions/movedhcpdefaultroute install"/>
+    <action name="remove" command="/etc/wicked/extensions/movedhcpdefaultroute remove"/>
+  </system-updater>
+</config>
