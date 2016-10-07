@@ -54,10 +54,22 @@ table="mgmt"
 #disable_ipv6=1
 disable_ipv6=1
 #
-# only allow SSH tcp/22 on the management network
-#firewall_only_ssh=1
-firewall_only_ssh=1
-
+# Drop any incoming traffic on the management interface
+#enable_firewall=1
+enable_firewall=1
+#
+# allow SSH TCP/22 on the management interface if enable_firewall == 1
+#fw_allow_ssh=1
+fw_allow_ssh=1
+#
+# allow check_mk_agent TCP/6556 on the management interface if enable_firewall == 1
+#fw_allow_checkmk=1
+fw_allow_checkmk=1
+#
+# allow SNMP UDP/161 on the management interface if enable_firewall == 1
+#fw_allow_snmp=1
+fw_allow_snmp=1
+#
 # -------------------------------------------------------
 
 
@@ -127,17 +139,70 @@ then
 				execlog ip rule add from "$ip" lookup "$table"
 
 				# disable IPv6 in our management network
-				[ $disable_ipv6 -eq 1 ] && execlog sysctl net.ipv6.conf.${interface}.disable_ipv6=1
+				[ $disable_ipv6 -eq 1 ] && execlog sysctl net.ipv6.conf.${INTERFACE}.disable_ipv6=1
 
-				# only allow tcp/22 via our management network
-				if [ $firewall_only_ssh -eq 1 ]
+				# Enable a generic firewall rule to drop all incoming traffic
+				if [ $enable_firewall -eq 1 ]
 				then
-					execlog iptables -I FORWARD -i "$interface" -j DROP
-					execlog iptables -I INPUT -i "$interface" -j DROP
-					execlog iptables -I INPUT -i "$interface" -p tcp -m tcp --dport 22 -j ACCEPT
-					execlog iptables -I INPUT -i "$interface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+					execlog iptables -I FORWARD -i "$INTERFACE" -j DROP
+					execlog iptables -I INPUT -i "$INTERFACE" -j DROP
+					execlog iptables -I INPUT -i "$INTERFACE" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+					if [ $fw_allow_ssh -eq 1 ]
+					then
+						execlog iptables -I INPUT -i "$INTERFACE" -p tcp -m tcp --dport 22 -j ACCEPT
+					fi
+					if [ $fw_allow_checkmk -eq 1 ]
+					then
+						execlog iptables -I INPUT -i "$INTERFACE" -p tcp -m tcp --dport 6556 -j ACCEPT
+					fi
+					if [ $fw_allow_snmp -eq 1 ]
+					then
+						execlog iptables -I INPUT -i "$INTERFACE" -p udp -m udp --dport 161 -j ACCEPT
+					fi
 				fi
 			fi
+		fi
+	fi
+elif [ "_$wicked_action" = "_remove" ]
+then
+	if [ "_$wicked_iface" = "_$iface" ] && [ "_$wicked_nettype" = "_dhcp" ] && [ "_$wicked_af" = "_ipv4" ]
+	then
+		logmsg "Interface $iface found"
+		leasefile="/run/wicked/leaseinfo.${wicked_iface}.${wicked_nettype}.${wicked_af}"
+		if [ -f $leasefile ]
+		then
+			. $leasefile
+
+			ip=$(echo $IPADDR | cut -d'/' -f1)
+
+			if [ "_$NETWORK" = "_$mgmtnet" ]
+			then
+				logmsg "We are in now leaving management network"
+
+				# if our interface IP is gone, remove the rule to the management rt_table
+				execlog ip rule del from "$INTERFACE" lookup "$table"
+
+				# release IPv6 in our management network
+				[ $disable_ipv6 -eq 1 ] && execlog sysctl net.ipv6.conf.${INTERFACE}.disable_ipv6=0
+
+				# remove previous firewall rules
+				if [ $enable_firewall -eq 1 ]; then
+					execlog iptables -D FORWARD -i "$INTERFACE" -j DROP
+					execlog iptables -D INPUT -i "$INTERFACE" -j DROP
+					execlog iptables -D INPUT -i "$INTERFACE" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+					if [ $fw_allow_ssh -eq 1 ]; then
+						execlog iptables -D INPUT -i "$INTERFACE" -p tcp -m tcp --dport 22 -j ACCEPT
+					fi
+					if [ $fw_allow_checkmk -eq 1 ]; then
+						execlog iptables -D INPUT -i "$INTERFACE" -p tcp -m tcp --dport 6556 -j ACCEPT
+					fi
+					if [ $fw_allow_snmp -eq 1 ]; then
+						execlog iptables -D INPUT -i "$INTERFACE" -p udp -m udp --dport 161 -j ACCEPT
+					fi
+				fi
+			fi
+		else
+			logmsg "leasefile $leasefile not found."
 		fi
 	fi
 fi

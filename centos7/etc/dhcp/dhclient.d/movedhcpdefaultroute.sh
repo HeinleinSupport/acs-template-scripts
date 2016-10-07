@@ -7,7 +7,7 @@
 # Peter Fischer <p.fischer@heinlein-support.de>
 # Stephan Seitz <s.seitz@heinlein-support.de>
 #
-# CentOS 7 mit NetworkManager emulates dhclient-script
+# CentOS 7 with NetworkManager emulates dhclient-script
 # with small changes.
 #
 # The resulting template should drive two scenarios:
@@ -38,13 +38,25 @@ mgmtnet="10.97.64.0"
 table="mgmt"
 #
 # Disable IPv6 at all on the management network
-#disable_ipv6=1
+#disable_ipv6=1 # possible values 0/1
 disable_ipv6=1
 #
-# only allow SSH tcp/22 on the management network
-#firewall_only_ssh=1
-firewall_only_ssh=1
-
+# Drop any incoming traffic on the management interface
+#enable_firewall=1
+enable_firewall=1
+#
+# allow SSH TCP/22 on the management interface if enable_firewall == 1
+#fw_allow_ssh=1
+fw_allow_ssh=1
+#
+# allow check_mk_agent TCP/6556 on the management interface if enable_firewall == 1
+#fw_allow_checkmk=1
+fw_allow_checkmk=1
+#
+# allow SNMP UDP/161 on the management interface if enable_firewall == 1
+#fw_allow_snmp=1
+fw_allow_snmp=1
+#
 # -------------------------------------------------------
 
 tag=$(basename $0)
@@ -78,12 +90,20 @@ if [ "$DEVICE_IFACE" = "$iface" ]; then
       # disable IPv6 in our management network
       [ $disable_ipv6 -eq 1 ] && execlog sysctl net.ipv6.conf.${interface}.disable_ipv6=1
 
-      # only allow tcp/22 via our management network
-      if [ $firewall_only_ssh -eq 1 ]; then
+      # Enable a generic firewall rule to drop all incoming traffic
+      if [ $enable_firewall -eq 1 ]; then
         execlog iptables -I FORWARD -i "$interface" -j DROP
         execlog iptables -I INPUT -i "$interface" -j DROP
-        execlog iptables -I INPUT -i "$interface" -p tcp -m tcp --dport 22 -j ACCEPT
         execlog iptables -I INPUT -i "$interface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+        if [ $fw_allow_ssh -eq 1 ]; then
+          execlog iptables -I INPUT -i "$interface" -p tcp -m tcp --dport 22 -j ACCEPT
+        fi
+        if [ $fw_allow_checkmk -eq 1 ]; then
+          execlog iptables -I INPUT -i "$interface" -p tcp -m tcp --dport 6556 -j ACCEPT
+        fi
+        if [ $fw_allow_snmp -eq 1 ]; then
+          execlog iptables -I INPUT -i "$interface" -p udp -m udp --dport 161 -j ACCEPT
+        fi
       fi
     fi
   elif [ "_$reason" = "_RELEASE" ]; then
@@ -99,11 +119,19 @@ if [ "$DEVICE_IFACE" = "$iface" ]; then
       [ $disable_ipv6 -eq 1 ] && execlog sysctl net.ipv6.conf.${interface}.disable_ipv6=0
 
       # remove previous firewall rules
-      if [ $firewall_only_ssh -eq 1 ]; then
+      if [ $enable_firewall -eq 1 ]; then
         execlog iptables -D FORWARD -i "$interface" -j DROP
         execlog iptables -D INPUT -i "$interface" -j DROP
-        execlog iptables -D INPUT -i "$interface" -p tcp -m tcp --dport 22 -j ACCEPT
         execlog iptables -D INPUT -i "$interface" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+        if [ $fw_allow_ssh -eq 1 ]; then
+          execlog iptables -D INPUT -i "$interface" -p tcp -m tcp --dport 22 -j ACCEPT
+        fi
+        if [ $fw_allow_checkmk -eq 1 ]; then
+          execlog iptables -D INPUT -i "$interface" -p tcp -m tcp --dport 6556 -j ACCEPT
+        fi
+        if [ $fw_allow_snmp -eq 1 ]; then
+          execlog iptables -D INPUT -i "$interface" -p udp -m udp --dport 161 -j ACCEPT
+        fi
       fi
     fi
   fi
