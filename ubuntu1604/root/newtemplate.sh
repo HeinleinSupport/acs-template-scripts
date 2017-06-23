@@ -66,6 +66,7 @@ hostname -b -F /etc/hostname
 
 history -c
 unset HISTFILE
+rm -f /var/log/lastlog
 
 sync && sync && sync
 echo o > /proc/sysrq-trigger
