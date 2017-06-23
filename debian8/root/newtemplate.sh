@@ -54,7 +54,7 @@ _EOF_
 
 history -c
 unset HISTFILE
-rm -r /var/log/lastlog
+rm -f /var/log/lastlog
 
 sync && sync && sync
 echo o > /proc/sysrq-trigger
