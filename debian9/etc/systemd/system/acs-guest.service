@@ -1,0 +1,12 @@
+[Unit]
+Description=Apache CloudStack Service
+After=network.target sshd.service
+
+[Service]
+ExecStartPre=/etc/init.d/cloud-set-guest-sshkey start 
+ExecStart=/etc/init.d/cloud-set-guest-password start
+Type=oneshot 
+
+[Install]
+WantedBy=multi-user.target
+Alias=acs-guest.service
