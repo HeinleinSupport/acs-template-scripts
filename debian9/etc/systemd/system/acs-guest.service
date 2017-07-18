@@ -1,6 +1,7 @@
 [Unit]
 Description=Apache CloudStack Service
-After=network.target sshd.service
+After=network-online.target network.target sshd-keygen.service sshd.service
+Wants=sshd-keygen.service network-online.target
 
 [Service]
 ExecStartPre=/etc/init.d/cloud-set-guest-sshkey start 
