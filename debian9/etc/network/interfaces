@@ -1,0 +1,35 @@
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+allow-hotplug eth0
+iface eth0 inet dhcp
+    pre-up  /sbin/ethtool -K eth0 tx off > /dev/null 2>&1 || /bin/true 
+
+
+# second network (optional) / example w/ isolated or shared w/ dhcp
+# 
+# Attention!! Before activate this interfaces, read the helper-scripts 
+# to get a route to the mgnt-network
+#
+# see /etc/network/dhclient-exit-hooks.d_movedhcpdefaultroute
+# see /etc/network/iproute2_rt_tables
+
+# auto eth1
+# iface eth1 inet dhcp
+#       pre-up  /sbin/ethtool -K eth1 tx off > /dev/null 2>&1 || /bin/true  
+
+# second network (optional) / example w/ quick cloud no services
+# #
+# #auto eth1
+# #iface eth1 inet static
+# #	address
+# #	netmask
+# #	gateway
+# #	pre-up  /sbin/ethtool -K eth1 tx off > /dev/null 2>&1 || /bin/true 
